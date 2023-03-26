@@ -32,19 +32,34 @@ int main(int argc, char *argv[]) {
     
     // Identify windows
     cv::namedWindow("Live Video", 1);
-    //cv::namedWindow("Threshold Video", 1);
 
     // Initialize frame, will be streamed from the camera
     cv::Mat frame;
 
     int calib_counter = 1;
 
-    cv::Vec3f point_set;
+    std::vector<cv::Vec3f> point_set;
     std::vector<std::vector<cv::Vec3f>> point_list;
     std::vector<std::vector<cv::Point2f>> corner_list;
 
-    // Boolean switch to make sure the points are calculated only once 
-    bool points_calculated = false; 
+    int pattern_columns = 9;
+    int pattern_rows = 6;
+
+    // Calculate the points within the pattern, only done once
+    // Create the point set, should be the same for each calibration image  
+    // In the form of top left = (0,0,0), to the right is (1,0,0), row below is (0,-1,0)
+    for (int c=0; c<pattern_columns; c++) {
+        for (int r=0; r<pattern_rows; r++) {
+            // For a planar pattern like a chessboard, set z to zero
+            // Since we are going down in y-value, it is negative
+            cv::Vec3f point = cv::Vec3f(c,0-r,0);
+            std::string point_string = "(" + std::to_string(point[0]) + "," + std::to_string(point[1]) + ","
+                                           + std::to_string(point[2]) + ")";
+            std::cout << point_string << std::endl;
+            point_set.push_back(point);
+        }
+    }
+
 
     for(;;) {
 	// Only create 5 calibration images
@@ -60,7 +75,6 @@ int main(int argc, char *argv[]) {
 	cv::cvtColor(frame, grayscaleFrame, cv::COLOR_BGR2GRAY);
 
         std::vector<cv::Point2f> corner_set;
-	std::vector<cv::Vec3f> point_set;
 
 	int pattern_columns = 9;
 	int pattern_rows = 6;
@@ -72,6 +86,7 @@ int main(int argc, char *argv[]) {
 	cornersFound = cv::findChessboardCorners(grayscaleFrame, patternsize, corner_set, cv::CALIB_CB_ADAPTIVE_THRESH 
 						      + cv::CALIB_CB_NORMALIZE_IMAGE + cv::CALIB_CB_FAST_CHECK);
 
+	// Checking size of the corner set matches pattern size of 54
 	//std::cout << corner_set.size() << std::endl;
 
 
@@ -100,24 +115,6 @@ int main(int argc, char *argv[]) {
         if( key == 's') {
             cv::imwrite("screenshot.jpg", frame);
 
-	    // Calculate the points if they haven't been calculated already
-	    if (!points_calculated) {
-                // Create the point set, should be the same for each calibration image  
-                // In the form of top left = (0,0,0), to the right is (1,0,0), row below is (0,-1,0)
-                for (int i=0; i<corner_set.size(); i++) {
-                    for (int c=0; c<pattern_columns; c++) {
-                        for (int r=0; r<pattern_rows; r++) {
-                            // For a planar pattern like a chessboard, set z to zero
-                            // Since we are going down in y-value, it is negative
-                            cv::Vec3f point = cv::Vec3f(c,0-r,0);
-                            point_set.push_back(point);
-                        }
-                    }
-                }
-                // Set the boolean to true
-                points_calculated = true;
-            }
-
 		
 	    if (cornersFound && calib_counter < 6) {
 		// Counter string between 1 and 5 for image naming
@@ -130,11 +127,17 @@ int main(int argc, char *argv[]) {
 	        // Set the index of the vectors to the sets for the calibration images chosen
 		point_list.push_back(point_set);
 		corner_list.push_back(corner_set);
+		
+		//std::cout << point_set.size() << std::endl;
+		//std::cout << corner_set.size() << std::endl;
+
 
 		// Alert the user to calibration being complete
 		if (calib_counter == 5) {
 		    std::cout << "Calibration complete." << std::endl;
 		    std::cout << "Any additional snapshots will not be recorded." << std::endl;
+		    std::cout << point_list.size() << std::endl;
+		    std::cout << corner_list.size() << std::endl;
 		}
 		
 		// Increment the counter
